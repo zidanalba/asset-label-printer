@@ -70,14 +70,6 @@
                 <h6 class="m-0 font-weight-bold text-primary">
                     <i class="bi bi-list-ul"></i> Assets List
                 </h6>
-                <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-secondary" onclick="window.print()">
-                        <i class="bi bi-printer"></i> Print List
-                    </button>
-                    <button class="btn btn-sm btn-outline-success" onclick="exportToCSV()">
-                        <i class="bi bi-download"></i> Export CSV
-                    </button>
-                </div>
             </div>
             <div class="card-body">
                 @if($assets->count() > 0)
@@ -102,10 +94,24 @@
                                         <span class="badge bg-secondary">{{ $asset->category->name ?? '-' }}</span>
                                     </td>
                                     <td>
-                                        <span class="badge bg-info">{{ $asset->organization->name ?? '-' }}</span>
+                                        @if($asset->instances->count() > 0)
+                                            @foreach($asset->instances as $instance)
+                                                <span class="badge bg-info">{{ $instance->organization->name ?? '-' }}</span>
+                                                @if(!$loop->last)<br>@endif
+                                            @endforeach
+                                        @else
+                                            <span class="badge bg-warning">No Organization</span>
+                                        @endif
                                     </td>
                                     <td>
-                                        <span class="badge bg-light text-dark">{{ $asset->infrastructure->name ?? '-' }}</span>
+                                        @if($asset->instances->count() > 0)
+                                            @foreach($asset->instances as $instance)
+                                                <span class="badge bg-light text-dark">{{ $instance->infrastructure->name ?? '-' }}</span>
+                                                @if(!$loop->last)<br>@endif
+                                            @endforeach
+                                        @else
+                                            <span class="badge bg-warning">No Location</span>
+                                        @endif
                                     </td>
                                     <td>
                                         <div class="btn-group" role="group">

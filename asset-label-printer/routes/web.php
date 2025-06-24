@@ -45,6 +45,10 @@ Route::prefix('print')->name('print.')->group(function () {
     Route::get('/label/{asset}', [PrintController::class, 'label'])->name('label');
 });
 
+Route::get('/print', [PrintController::class, 'index'])->name('print.index');
+Route::get('/print/assets-table', [PrintController::class, 'assetsTable'])->name('print.assetsTable');
+Route::get('/print/single/{asset}', [PrintController::class, 'single'])->name('print.single');
+
 // Fallback route for 404
 Route::fallback(function () {
     return view('errors.404');

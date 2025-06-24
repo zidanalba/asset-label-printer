@@ -105,7 +105,7 @@ class OrganizationSeeder extends Seeder
             return;
         }
         foreach ($children as $child) {
-            DB::table('infrastructures')->insert([
+            DB::table('organizations')->insert([
                 'id' => (string) Str::uuid(),
                 'name' => $child,
                 'parent_id' => $parent->id,

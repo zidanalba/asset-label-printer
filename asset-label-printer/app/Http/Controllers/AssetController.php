@@ -18,7 +18,7 @@ class AssetController extends Controller
      */
     public function index()
     {
-        $assets = Asset::with(['category', 'organization', 'infrastructure'])->paginate(20);
+        $assets = Asset::with(['category', 'instances.organization', 'instances.infrastructure'])->paginate(20);
         return view('assets.index', compact('assets'));
     }
 
@@ -43,16 +43,77 @@ class AssetController extends Controller
      */
     public function store(Request $request)
     {
+        // Debug: Let's see what's being submitted
+        \Log::info('Asset creation request data:', $request->all());
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:assets,code',
-            'category_id' => 'nullable|exists:asset_categories,id',
-            'organization_id' => 'required|exists:organizations,id',
-            'infrastructure_id' => 'nullable|exists:infrastructures,id',
+            'category_id' => 'nullable|array',
+            'category_id.*' => 'nullable|exists:asset_categories,id',
+            'organization_id' => 'nullable|array',
+            'organization_id.*' => 'nullable|exists:organizations,id',
+            'infrastructure_id' => 'nullable|array',
+            'infrastructure_id.*' => 'nullable|exists:infrastructures,id',
+            'qty' => 'required|integer|min:1',
         ]);
-        $validated['id'] = (string) Str::uuid();
-        $asset = Asset::create($validated);
-        return redirect()->route('assets.index')->with('success', 'Asset created successfully!');
+
+        // Take the last non-empty value from each array
+        $categoryArray = !empty($validated['category_id']) ? array_filter($validated['category_id']) : [];
+        $organizationArray = !empty($validated['organization_id']) ? array_filter($validated['organization_id']) : [];
+        $infrastructureArray = !empty($validated['infrastructure_id']) ? array_filter($validated['infrastructure_id']) : [];
+        
+        $categoryId = !empty($categoryArray) ? end($categoryArray) : null;
+        $organizationId = !empty($organizationArray) ? end($organizationArray) : null;
+        $infrastructureId = !empty($infrastructureArray) ? end($infrastructureArray) : null;
+
+        // Debug: Let's see the final values
+        \Log::info('Final values:', [
+            'category_id' => $categoryId,
+            'organization_id' => $organizationId,
+            'infrastructure_id' => $infrastructureId
+        ]);
+
+        // Validate that at least one organization is selected
+        if (!$organizationId) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['organization_id' => 'Please select either a Division or Unit.']);
+        }
+
+        try {
+            \DB::beginTransaction();
+            
+            $assetData = [
+                'id' => (string) Str::uuid(),
+                'name' => $validated['name'],
+                'code' => $validated['code'],
+                'category_id' => $categoryId,
+            ];
+            
+            $asset = Asset::create($assetData);
+            
+            $instanceData = [
+                'id' => (string) Str::uuid(),
+                'asset_id' => $asset->id,
+                'organization_id' => $organizationId,
+                'infrastructure_id' => $infrastructureId,
+                'qty' => $validated['qty'],
+                'status' => 'active', // Set default status
+            ];
+            
+            \App\Models\AssetInstance::create($instanceData);
+            
+            \DB::commit();
+            
+            return redirect()->route('assets.index')->with('success', 'Asset created successfully!');
+            
+        } catch (\Exception $e) {
+            \DB::rollback();
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['error' => 'Failed to create asset: ' . $e->getMessage()]);
+        }
     }
 
     /**
@@ -63,7 +124,7 @@ class AssetController extends Controller
      */
     public function show($id)
     {
-        $asset = Asset::with(['category', 'organization', 'infrastructure', 'instances'])->findOrFail($id);
+        $asset = Asset::with(['category', 'instances.organization', 'instances.infrastructure'])->findOrFail($id);
         return view('assets.show', compact('asset'));
     }
 
@@ -91,16 +152,69 @@ class AssetController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $asset = Asset::findOrFail($id);
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'code' => 'required|string|max:255|unique:assets,code,' . $asset->id . ',id',
-            'category_id' => 'nullable|exists:asset_categories,id',
-            'organization_id' => 'required|exists:organizations,id',
-            'infrastructure_id' => 'nullable|exists:infrastructures,id',
+            'code' => 'required|string|max:255|unique:assets,code,' . $id . ',id',
+            'category_id' => 'nullable|array',
+            'category_id.*' => 'nullable|exists:asset_categories,id',
+            'organization_id' => 'nullable|array',
+            'organization_id.*' => 'nullable|exists:organizations,id',
+            'infrastructure_id' => 'nullable|array',
+            'infrastructure_id.*' => 'nullable|exists:infrastructures,id',
+            'qty' => 'required|integer|min:1',
         ]);
-        $asset->update($validated);
-        return redirect()->route('assets.index')->with('success', 'Asset updated successfully!');
+
+        $categoryArray = !empty($validated['category_id']) ? array_filter($validated['category_id']) : [];
+        $organizationArray = !empty($validated['organization_id']) ? array_filter($validated['organization_id']) : [];
+        $infrastructureArray = !empty($validated['infrastructure_id']) ? array_filter($validated['infrastructure_id']) : [];
+
+        $categoryId = !empty($categoryArray) ? end($categoryArray) : null;
+        $organizationId = !empty($organizationArray) ? end($organizationArray) : null;
+        $infrastructureId = !empty($infrastructureArray) ? end($infrastructureArray) : null;
+
+        if (!$organizationId) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['organization_id' => 'Please select either a Division or Unit.']);
+        }
+
+        try {
+            \DB::beginTransaction();
+
+            $asset = Asset::findOrFail($id);
+            $asset->update([
+                'name' => $validated['name'],
+                'code' => $validated['code'],
+                'category_id' => $categoryId,
+            ]);
+
+            // Update the first instance (or create if not exists)
+            $instance = $asset->instances()->first();
+            if ($instance) {
+                $instance->update([
+                    'organization_id' => $organizationId,
+                    'infrastructure_id' => $infrastructureId,
+                    'qty' => $validated['qty'],
+                ]);
+            } else {
+                \App\Models\AssetInstance::create([
+                    'id' => (string) Str::uuid(),
+                    'asset_id' => $asset->id,
+                    'organization_id' => $organizationId,
+                    'infrastructure_id' => $infrastructureId,
+                    'qty' => $validated['qty'],
+                    'status' => 'active',
+                ]);
+            }
+
+            \DB::commit();
+            return redirect()->route('assets.index')->with('success', 'Asset updated successfully!');
+        } catch (\Exception $e) {
+            \DB::rollback();
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['error' => 'Failed to update asset: ' . $e->getMessage()]);
+        }
     }
 
     /**
@@ -111,8 +225,22 @@ class AssetController extends Controller
      */
     public function destroy($id)
     {
-        $asset = Asset::findOrFail($id);
-        $asset->delete();
-        return redirect()->route('assets.index')->with('success', 'Asset deleted successfully!');
+        try {
+            \DB::beginTransaction();
+            
+            $asset = Asset::findOrFail($id);
+            // Delete all related asset instances
+            $asset->instances()->delete();
+            // Delete the asset
+            $asset->delete();
+            
+            \DB::commit();
+            
+            return redirect()->route('assets.index')->with('success', 'Asset and its instances deleted successfully!');
+            
+        } catch (\Exception $e) {
+            \DB::rollback();
+            return redirect()->back()->withErrors(['error' => 'Failed to delete asset: ' . $e->getMessage()]);
+        }
     }
 }

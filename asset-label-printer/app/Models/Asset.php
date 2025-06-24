@@ -17,23 +17,15 @@ class Asset extends Model
         'name',
         'code',
         'category_id',
-        'organization_id',
-        'infrastructure_id',
+    ];
+
+    protected $casts = [
+        'printed_at' => 'datetime',
     ];
 
     public function category()
     {
         return $this->belongsTo(AssetCategory::class, 'category_id');
-    }
-
-    public function organization()
-    {
-        return $this->belongsTo(Organization::class, 'organization_id');
-    }
-
-    public function infrastructure()
-    {
-        return $this->belongsTo(Infrastructure::class, 'infrastructure_id');
     }
 
     public function instances()

@@ -15,7 +15,9 @@ class AssetInstance extends Model
     protected $fillable = [
         'id',
         'asset_id',
+        'organization_id',
         'infrastructure_id',
+        'qty',
         'installed_at',
         'status',
     ];
@@ -23,6 +25,11 @@ class AssetInstance extends Model
     public function asset()
     {
         return $this->belongsTo(Asset::class, 'asset_id');
+    }
+
+    public function organization()
+    {
+        return $this->belongsTo(Organization::class, 'organization_id');
     }
 
     public function infrastructure()
