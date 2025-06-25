@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 
 class PrintController extends Controller
 {
@@ -236,5 +237,39 @@ class PrintController extends Controller
         // For now, return a simple view
         // Later this will generate and print the label
         return view('print.label', compact('asset'));
+    }
+
+    /**
+     * Send selected assets to the printer-agent for printing.
+     */
+    public function sendToPrinter(Request $request)
+    {
+        $assetsInput = $request->input('assets');
+        if (!$assetsInput || !is_array($assetsInput)) {
+            return response()->json(['error' => 'No assets provided.'], 400);
+        }
+
+        $assetIds = collect($assetsInput)->pluck('id')->all();
+        $assets = \App\Models\Asset::with(['instances.organization'])->whereIn('id', $assetIds)->get()->keyBy('id');
+
+        $payload = [];
+        foreach ($assetsInput as $input) {
+            $asset = $assets[$input['id']] ?? null;
+            if (!$asset) continue;
+            $organization = $asset->instances->first()->organization->name ?? 'Unknown';
+            $payload[] = [
+                'assetSerialNumber' => (!empty($asset->serial_number) ? $asset->serial_number : ''),
+                'assetName' => $asset->name,
+                'hospitalName' => $organization,
+                'assetCode' => $asset->code,
+                'labelSize' => $input['label_size'] ?? 'S',
+            ];
+        }
+
+        $response = \Illuminate\Support\Facades\Http::post('http://localhost:3001/print', [
+            'assets' => $payload
+        ]);
+
+        return response()->json($response->json());
     }
 }

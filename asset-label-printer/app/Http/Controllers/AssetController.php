@@ -49,6 +49,7 @@ class AssetController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:assets,code',
+            'serial_number' => 'nullable|string|max:64',
             'category_id' => 'nullable|array',
             'category_id.*' => 'nullable|exists:asset_categories,id',
             'organization_id' => 'nullable|array',
@@ -88,6 +89,7 @@ class AssetController extends Controller
                 'id' => (string) Str::uuid(),
                 'name' => $validated['name'],
                 'code' => $validated['code'],
+                'serial_number' => $validated['serial_number'] ?? null,
                 'category_id' => $categoryId,
             ];
             
@@ -155,6 +157,7 @@ class AssetController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'code' => 'required|string|max:255|unique:assets,code,' . $id . ',id',
+            'serial_number' => 'nullable|string|max:64',
             'category_id' => 'nullable|array',
             'category_id.*' => 'nullable|exists:asset_categories,id',
             'organization_id' => 'nullable|array',
@@ -185,6 +188,7 @@ class AssetController extends Controller
             $asset->update([
                 'name' => $validated['name'],
                 'code' => $validated['code'],
+                'serial_number' => $validated['serial_number'] ?? null,
                 'category_id' => $categoryId,
             ]);
 

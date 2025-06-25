@@ -845,6 +845,58 @@
         const modal = new bootstrap.Modal(document.getElementById('printModal'));
         modal.show();
     }
+
+    // Add handler for the Print button in the modal
+    document.addEventListener('DOMContentLoaded', function() {
+        const confirmPrintBtn = document.getElementById('confirmPrintBtn');
+        if (confirmPrintBtn) {
+            confirmPrintBtn.onclick = function() {
+                // Gather selected asset IDs and their label sizes from the modal table
+                const checkboxes = document.querySelectorAll('.asset-checkbox:checked');
+                if (checkboxes.length === 0) {
+                    alert('Please select at least one asset to print.');
+                    return;
+                }
+                // Map asset IDs to their selected label size
+                const assetsToSend = [];
+                const modalRows = document.querySelectorAll('#selectedAssetsList tbody tr');
+                modalRows.forEach((row, idx) => {
+                    const assetId = checkboxes[idx].value;
+                    const sizeText = row.querySelector('.label-size-select').value;
+                    // Map UI text to backend value
+                    let labelSize = 'S';
+                    if (sizeText === 'Medium') labelSize = 'M';
+                    if (sizeText === 'Large') labelSize = 'L';
+                    assetsToSend.push({ id: assetId, label_size: labelSize });
+                });
+
+                // Send print request
+                fetch('/print/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({
+                        assets: assetsToSend
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.results) {
+                        let successCount = data.results.filter(r => r.success).length;
+                        let failCount = data.results.length - successCount;
+                        alert(`Print jobs sent!\nSuccess: ${successCount}\nFailed: ${failCount}`);
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(err => {
+                    alert('Error sending print request: ' + err);
+                });
+            };
+        }
+    });
 </script>
 @endpush
 @endsection 

@@ -17,6 +17,7 @@ class Asset extends Model
         'name',
         'code',
         'category_id',
+        'serial_number',
     ];
 
     protected $casts = [

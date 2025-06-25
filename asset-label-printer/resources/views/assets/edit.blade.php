@@ -60,6 +60,15 @@
                         </div>
                     </div>
                     <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="serial_number" class="form-label">Serial Number</label>
+                            <input type="text" class="form-control @error('serial_number') is-invalid @enderror" id="serial_number" name="serial_number" value="{{ old('serial_number', $asset->serial_number) }}" maxlength="64" placeholder="Optional">
+                            @error('serial_number')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                    </div>
+                    <div class="row">
                         <!-- Category Hierarchy -->
                         <div class="col-md-3 mb-3">
                             <label for="category_parent" class="form-label">Category</label>
