@@ -18,6 +18,8 @@ class DatabaseSeeder extends Seeder
         $this->call([
             AssetCategorySeeder::class,
             InfrastructureSeeder::class,
+            InfrastructureSeeder2::class,
+            OrganizationSeeder::class
         ]);
     }
 }

@@ -6,8 +6,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Models\Asset;
 use App\Models\AssetCategory;
+use App\Models\AssetInstance;
 use App\Models\Organization;
 use App\Models\Infrastructure;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class AssetController extends Controller
 {
@@ -29,9 +33,9 @@ class AssetController extends Controller
      */
     public function create()
     {
-        $categories = \App\Models\AssetCategory::all();
-        $organizations = \App\Models\Organization::all();
-        $infrastructures = \App\Models\Infrastructure::all();
+        $categories = AssetCategory::all();
+        $organizations = Organization::all();
+        $infrastructures = Infrastructure::all();
         return view('assets.create', compact('categories', 'organizations', 'infrastructures'));
     }
 
@@ -44,7 +48,7 @@ class AssetController extends Controller
     public function store(Request $request)
     {
         // Debug: Let's see what's being submitted
-        \Log::info('Asset creation request data:', $request->all());
+        Log:info('Asset creation request data:', $request->all());
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -56,7 +60,8 @@ class AssetController extends Controller
             'organization_id.*' => 'nullable|exists:organizations,id',
             'infrastructure_id' => 'nullable|array',
             'infrastructure_id.*' => 'nullable|exists:infrastructures,id',
-            'qty' => 'required|integer|min:1',
+            'asset_photo' => 'nullable|image|mimes:jpg,png,jpeg,gif,svg|max:2048',
+            'asset_serial_number_photo' => 'nullable|image|mimes:jpg,png,jpeg,gif,svg|max:2048',
         ]);
 
         // Take the last non-empty value from each array
@@ -69,21 +74,21 @@ class AssetController extends Controller
         $infrastructureId = !empty($infrastructureArray) ? end($infrastructureArray) : null;
 
         // Debug: Let's see the final values
-        \Log::info('Final values:', [
+        Log::info('Final values:', [
             'category_id' => $categoryId,
             'organization_id' => $organizationId,
             'infrastructure_id' => $infrastructureId
         ]);
 
         // Validate that at least one organization is selected
-        if (!$organizationId) {
-            return redirect()->back()
-                ->withInput()
-                ->withErrors(['organization_id' => 'Please select either a Division or Unit.']);
-        }
+        // if (!$organizationId) {
+        //     return redirect()->back()
+        //         ->withInput()
+        //         ->withErrors(['organization_id' => 'Please select either a Division or Unit.']);
+        // }
 
         try {
-            \DB::beginTransaction();
+            DB::beginTransaction();
             
             $assetData = [
                 'id' => (string) Str::uuid(),
@@ -95,23 +100,32 @@ class AssetController extends Controller
             
             $asset = Asset::create($assetData);
             
+            if ($request->hasFile('asset_photo')) {
+                $asset_photo_path = $request->file('asset_photo')->store('asset-photos', 'public');
+            }
+            
+            if ($request->hasFile('asset_serial_number_photo')) {
+                $asset_serial_number_photo_path = $request->file('asset_serial_number_photo')->store('asset-serial-number-photos', 'public');
+            }
+
             $instanceData = [
                 'id' => (string) Str::uuid(),
                 'asset_id' => $asset->id,
                 'organization_id' => $organizationId,
                 'infrastructure_id' => $infrastructureId,
-                'qty' => $validated['qty'],
                 'status' => 'active', // Set default status
+                'asset_photo' => $asset_photo_path,
+                'asset_serial_number_photo' => $asset_serial_number_photo_path
             ];
             
-            \App\Models\AssetInstance::create($instanceData);
+            AssetInstance::create($instanceData);
             
-            \DB::commit();
+            DB::commit();
             
             return redirect()->route('assets.index')->with('success', 'Asset created successfully!');
             
         } catch (\Exception $e) {
-            \DB::rollback();
+            DB::rollback();
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['error' => 'Failed to create asset: ' . $e->getMessage()]);
@@ -138,11 +152,13 @@ class AssetController extends Controller
      */
     public function edit($id)
     {
-        $asset = Asset::findOrFail($id);
+        $asset = Asset::with('instances')->findOrFail($id);
+        $assetInstance = AssetInstance::where('asset_id', $asset->id)->first();
+        // dd($assetInstance);
         $categories = AssetCategory::all();
         $organizations = Organization::all();
         $infrastructures = Infrastructure::all();
-        return view('assets.edit', compact('asset', 'categories', 'organizations', 'infrastructures'));
+        return view('assets.edit', compact('asset', 'categories', 'organizations', 'infrastructures', 'assetInstance'));
     }
 
     /**
@@ -164,25 +180,18 @@ class AssetController extends Controller
             'organization_id.*' => 'nullable|exists:organizations,id',
             'infrastructure_id' => 'nullable|array',
             'infrastructure_id.*' => 'nullable|exists:infrastructures,id',
-            'qty' => 'required|integer|min:1',
+            'asset_photo' => 'nullable|image|mimes:jpg,png,jpeg,gif,svg|max:2048',
+            'remove_asset_photo' => 'nullable|boolean',
+            'asset_serial_number_photo' => 'nullable|image|mimes:jpg,png,jpeg,gif,svg|max:2048',
+            'remove_asset_serial_number_photo' => 'nullable|boolean'
         ]);
 
-        $categoryArray = !empty($validated['category_id']) ? array_filter($validated['category_id']) : [];
-        $organizationArray = !empty($validated['organization_id']) ? array_filter($validated['organization_id']) : [];
-        $infrastructureArray = !empty($validated['infrastructure_id']) ? array_filter($validated['infrastructure_id']) : [];
-
-        $categoryId = !empty($categoryArray) ? end($categoryArray) : null;
-        $organizationId = !empty($organizationArray) ? end($organizationArray) : null;
-        $infrastructureId = !empty($infrastructureArray) ? end($infrastructureArray) : null;
-
-        if (!$organizationId) {
-            return redirect()->back()
-                ->withInput()
-                ->withErrors(['organization_id' => 'Please select either a Division or Unit.']);
-        }
+        $categoryId = collect($validated['category_id'] ?? [])->filter()->last();
+        $organizationId = collect($validated['organization_id'] ?? [])->filter()->last();
+        $infrastructureId = collect($validated['infrastructure_id'] ?? [])->filter()->last();
 
         try {
-            \DB::beginTransaction();
+            DB::beginTransaction();
 
             $asset = Asset::findOrFail($id);
             $asset->update([
@@ -192,34 +201,64 @@ class AssetController extends Controller
                 'category_id' => $categoryId,
             ]);
 
-            // Update the first instance (or create if not exists)
             $instance = $asset->instances()->first();
+            $newAssetPhotoPath = $instance->asset_photo ?? null;
+            $newAssetSerialNumberPhotoPath = $instance->asset_serial_number_photo ?? null;
+
+            // Handle asset photo
+            if (!empty($validated['remove_asset_photo']) && $instance?->asset_photo) {
+                Storage::disk('public')->delete($instance->asset_photo);
+                $newAssetPhotoPath = null;
+            }
+            if ($request->hasFile('asset_photo')) {
+                if ($instance?->asset_photo) {
+                    Storage::disk('public')->delete($instance->asset_photo);
+                }
+                $newAssetPhotoPath = $request->file('asset_photo')->store('asset-photos', 'public');
+            }
+
+            // Handle serial number photo
+            if (!empty($validated['remove_asset_serial_number_photo']) && $instance?->asset_serial_number_photo) {
+                Storage::disk('public')->delete($instance->asset_serial_number_photo);
+                $newAssetSerialNumberPhotoPath = null;
+            }
+            if ($request->hasFile('asset_serial_number_photo')) {
+                if ($instance?->asset_serial_number_photo) {
+                    Storage::disk('public')->delete($instance->asset_serial_number_photo);
+                }
+                $newAssetSerialNumberPhotoPath = $request->file('asset_serial_number_photo')->store('asset-serial-number-photos', 'public');
+            }
+
+            // Update or create instance
             if ($instance) {
                 $instance->update([
                     'organization_id' => $organizationId,
                     'infrastructure_id' => $infrastructureId,
-                    'qty' => $validated['qty'],
+                    'asset_photo' => $newAssetPhotoPath,
+                    'asset_serial_number_photo' => $newAssetSerialNumberPhotoPath,
                 ]);
             } else {
-                \App\Models\AssetInstance::create([
+                AssetInstance::create([
                     'id' => (string) Str::uuid(),
                     'asset_id' => $asset->id,
                     'organization_id' => $organizationId,
                     'infrastructure_id' => $infrastructureId,
-                    'qty' => $validated['qty'],
+                    'asset_photo' => $newAssetPhotoPath,
+                    'asset_serial_number_photo' => $newAssetSerialNumberPhotoPath,
                     'status' => 'active',
                 ]);
             }
 
-            \DB::commit();
+            DB::commit();
             return redirect()->route('assets.index')->with('success', 'Asset updated successfully!');
         } catch (\Exception $e) {
-            \DB::rollback();
+            DB::rollBack();
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['error' => 'Failed to update asset: ' . $e->getMessage()]);
         }
     }
+
 
     /**
      * Remove the specified resource from storage.
@@ -230,7 +269,7 @@ class AssetController extends Controller
     public function destroy($id)
     {
         try {
-            \DB::beginTransaction();
+            DB::beginTransaction();
             
             $asset = Asset::findOrFail($id);
             // Delete all related asset instances
@@ -238,12 +277,12 @@ class AssetController extends Controller
             // Delete the asset
             $asset->delete();
             
-            \DB::commit();
+            DB::commit();
             
             return redirect()->route('assets.index')->with('success', 'Asset and its instances deleted successfully!');
             
         } catch (\Exception $e) {
-            \DB::rollback();
+            DB::rollback();
             return redirect()->back()->withErrors(['error' => 'Failed to delete asset: ' . $e->getMessage()]);
         }
     }

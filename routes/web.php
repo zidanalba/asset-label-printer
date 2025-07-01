@@ -25,8 +25,8 @@ Route::prefix('assets')->name('assets.')->group(function () {
     Route::get('/', [AssetController::class, 'index'])->name('index');
     Route::get('/create', [AssetController::class, 'create'])->name('create');
     Route::post('/', [AssetController::class, 'store'])->name('store');
+    Route::get('/{asset}/edit', [AssetController::class, 'editAsset'])->name('edit');
     Route::get('/{asset}', [AssetController::class, 'show'])->name('show');
-    Route::get('/{asset}/edit', [AssetController::class, 'edit'])->name('edit');
     Route::put('/{asset}', [AssetController::class, 'update'])->name('update');
     Route::delete('/{asset}', [AssetController::class, 'destroy'])->name('destroy');
     
@@ -51,20 +51,6 @@ Route::prefix('print')->name('print.')->group(function () {
     Route::get('/label/{asset}', [PrintController::class, 'label'])->name('label');
 });
 
-// Labels Management Routes
-Route::prefix('labels')->name('labels.')->group(function () {
-    Route::get('/', [LabelController::class, 'index'])->name('index');
-    Route::get('/create', [LabelController::class, 'create'])->name('create');
-    Route::post('/', [LabelController::class, 'store'])->name('store');
-    Route::get('/{label}', [LabelController::class, 'show'])->name('show');
-    Route::get('/{label}/edit', [LabelController::class, 'edit'])->name('edit');
-    Route::put('/{label}', [LabelController::class, 'update'])->name('update');
-    Route::delete('/{label}', [LabelController::class, 'destroy'])->name('destroy');
-    
-    // Template management
-    Route::get('/templates', [LabelController::class, 'templates'])->name('templates');
-    Route::post('/templates', [LabelController::class, 'saveTemplate'])->name('save-template');
-});
 
 // API Routes for AJAX requests
 Route::prefix('api')->name('api.')->group(function () {

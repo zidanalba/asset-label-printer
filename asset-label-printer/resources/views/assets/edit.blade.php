@@ -61,8 +61,8 @@
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label for="serial_number" class="form-label">Serial Number</label>
-                            <input type="text" class="form-control @error('serial_number') is-invalid @enderror" id="serial_number" name="serial_number" value="{{ old('serial_number', $asset->serial_number) }}" maxlength="64" placeholder="Optional">
+                            <label for="serial_number" class="form-label">Serial Number <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control @error('serial_number') is-invalid @enderror" id="serial_number" name="serial_number" value="{{ old('serial_number', $asset->serial_number) }}" maxlength="64" placeholder="e.g., 20250624-Z3M7Q8LC">
                             @error('serial_number')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
@@ -73,16 +73,20 @@
                         <div class="col-md-3 mb-3">
                             <label for="category_parent" class="form-label">Category</label>
                             <select class="form-select" id="category_parent">
-                                <option value="">Select Category</option>
+                                <option value="">Not Selected</option>
+                                @php
+                                    $selectedCategory = $asset->category;
+                                    $selectedCategoryParentId = $selectedCategory?->parent?->id ?? null;
+                                @endphp
                                 @foreach($categories->where('parent_id', null) as $cat)
-                                    <option value="{{ $cat->id }}" {{ $asset->category && $asset->category->parent_id == null && $asset->category_id == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                                    <option value="{{ $cat->id }}" {{ $cat->id == $selectedCategoryParentId ? 'selected' : '' }}>{{ $cat->name }}</option>
                                 @endforeach
                             </select>
                         </div>
                         <div class="col-md-3 mb-3">
                             <label for="category_id" class="form-label">Sub Category</label>
                             <select class="form-select @error('category_id') is-invalid @enderror" id="category_id" name="category_id[]">
-                                <option value="">Select Sub Category</option>
+                                <option value="">Not Selected</option>
                                 @foreach($categories->where('parent_id', '!=', null) as $cat)
                                     <option value="{{ $cat->id }}" data-parent="{{ $cat->parent_id }}" {{ old('category_id', $asset->category_id) == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
                                 @endforeach
@@ -95,20 +99,30 @@
                         <div class="col-md-3 mb-3">
                             <label for="organization_parent" class="form-label">Division</label>
                             <select class="form-select" id="organization_parent">
-                                <option value="">Select Division</option>
-                                @foreach($organizations->where('parent_id', null) as $org)
+                                <option value="">Not Selected</option>
                                     @php
-                                        $instance = $asset->instances->first();
-                                        $orgSelected = $instance && $instance->organization && $instance->organization->parent_id == null && $instance->organization_id == $org->id;
+                                        $instance = $assetInstance;
+                                        $selectedOrg = $instance?->organization;
+
+                                        // Check if it's a unit (has parent), then take parent ID
+                                        // Otherwise, assume it's a division
+                                        $selectedDivisionId = $selectedOrg
+                                            ? ($selectedOrg->parent_id ?? $selectedOrg->id)
+                                            : null;
                                     @endphp
-                                    <option value="{{ $org->id }}" {{ $orgSelected ? 'selected' : '' }}>{{ $org->name }}</option>
-                                @endforeach
+
+                                    @foreach($organizations->where('parent_id', null) as $org)
+                                        <option value="{{ $org->id }}" {{ $org->id == $selectedDivisionId ? 'selected' : '' }}>
+                                            {{ $org->name }}
+                                        </option>
+                                    @endforeach
+
                             </select>
                         </div>
                         <div class="col-md-3 mb-3">
                             <label for="organization_id" class="form-label">Unit</label>
                             <select class="form-select @error('organization_id') is-invalid @enderror" id="organization_id" name="organization_id[]">
-                                <option value="">Select Unit</option>
+                                <option value="">Not Selected</option>
                                 @foreach($organizations->where('parent_id', '!=', null) as $org)
                                     @php
                                         $instance = $asset->instances->first();
@@ -124,55 +138,78 @@
                     </div>
                     <div class="row">
                         <!-- Infrastructure Hierarchy -->
+                        @php
+                            $instance = $asset->instances->first();
+                            $selectedInfra = $instance?->infrastructure;
+
+                            $building = $floor = $room = $subRoom = null;
+
+                            if ($selectedInfra) {
+                                $current = $selectedInfra;
+                                $parents = [];
+
+                                // Traverse upward and store each parent
+                                while ($current) {
+                                    $parents[] = $current;
+                                    $current = $current->parent;
+                                }
+
+                                // Now reverse to go from top (building) to bottom
+                                $parents = array_reverse($parents);
+
+                                // Assign levels based on depth
+                                $building  = $parents[0] ?? null;
+                                $floor     = $parents[1] ?? null;
+                                $room      = $parents[2] ?? null;
+                                $subRoom   = $parents[3] ?? null;
+                            }
+                        @endphp
+
+
                         <div class="col-md-3 mb-3">
                             <label for="infrastructure_building" class="form-label">Building</label>
                             <select class="form-select" id="infrastructure_building">
-                                <option value="">Select Building</option>
+                                <option value="">Not Selected</option>
                                 @foreach($infrastructures->where('parent_id', null) as $bld)
-                                    @php
-                                        $instance = $asset->instances->first();
-                                        $bldSelected = $instance && $instance->infrastructure && $instance->infrastructure->parent_id == null && $instance->infrastructure_id == $bld->id;
-                                    @endphp
-                                    <option value="{{ $bld->id }}" {{ $bldSelected ? 'selected' : '' }}>{{ $bld->name }}</option>
+                                    <option value="{{ $bld->id }}" {{ $bld->id == $building?->id ? 'selected' : '' }}>
+                                        {{ $bld->name }}
+                                    </option>
                                 @endforeach
                             </select>
                         </div>
                         <div class="col-md-3 mb-3">
                             <label for="infrastructure_floor" class="form-label">Floor</label>
                             <select class="form-select" id="infrastructure_floor">
-                                <option value="">Select Floor</option>
-                                @foreach($infrastructures->where('parent_id', '!=', null) as $floor)
-                                    @php
-                                        $instance = $asset->instances->first();
-                                        $floorSelected = $instance && $instance->infrastructure_id == $floor->id;
-                                    @endphp
-                                    <option value="{{ $floor->id }}" data-parent="{{ $floor->parent_id }}" {{ $floorSelected ? 'selected' : '' }}>{{ $floor->name }}</option>
+                                <option value="">Not Selected</option>
+                                @foreach($infrastructures->where('parent_id', '!=', null) as $floorItem)
+                                    <option value="{{ $floorItem->id }}" data-parent="{{ $floorItem->parent_id }}"
+                                        {{ $floorItem->id == $floor?->id ? 'selected' : '' }}>
+                                        {{ $floorItem->name }}
+                                    </option>
                                 @endforeach
                             </select>
                         </div>
                         <div class="col-md-3 mb-3">
                             <label for="infrastructure_room" class="form-label">Room</label>
                             <select class="form-select" id="infrastructure_room">
-                                <option value="">Select Room</option>
-                                @foreach($infrastructures->where('parent_id', '!=', null) as $room)
-                                    @php
-                                        $instance = $asset->instances->first();
-                                        $roomSelected = $instance && $instance->infrastructure_id == $room->id;
-                                    @endphp
-                                    <option value="{{ $room->id }}" data-parent="{{ $room->parent_id }}" {{ $roomSelected ? 'selected' : '' }}>{{ $room->name }}</option>
+                                <option value="">Not Selected</option>
+                                @foreach($infrastructures->where('parent_id', '!=', null) as $roomItem)
+                                    <option value="{{ $roomItem->id }}" data-parent="{{ $roomItem->parent_id }}"
+                                        {{ $roomItem->id == $room?->id ? 'selected' : '' }}>
+                                        {{ $roomItem->name }}
+                                    </option>
                                 @endforeach
                             </select>
                         </div>
                         <div class="col-md-3 mb-3">
                             <label for="infrastructure_id" class="form-label">Sub-Room</label>
                             <select class="form-select @error('infrastructure_id') is-invalid @enderror" id="infrastructure_id" name="infrastructure_id[]">
-                                <option value="">Select Sub-Room</option>
-                                @foreach($infrastructures->where('parent_id', '!=', null) as $subroom)
-                                    @php
-                                        $instance = $asset->instances->first();
-                                        $subroomSelected = $instance && $instance->infrastructure_id == $subroom->id;
-                                    @endphp
-                                    <option value="{{ $subroom->id }}" data-parent="{{ $subroom->parent_id }}" {{ old('infrastructure_id', $subroomSelected ? $subroom->id : '') == $subroom->id ? 'selected' : '' }}>{{ $subroom->name }}</option>
+                                <option value="">Not Selected</option>
+                                @foreach($infrastructures->where('parent_id', '!=', null) as $subroomItem)
+                                    <option value="{{ $subroomItem->id }}" data-parent="{{ $subroomItem->parent_id }}"
+                                        {{ $subroomItem->id == $subRoom?->id ? 'selected' : '' }}>
+                                        {{ $subroomItem->name }}
+                                    </option>
                                 @endforeach
                             </select>
                             @error('infrastructure_id')
@@ -181,16 +218,65 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-3 mb-3">
-                            <label for="qty" class="form-label">Quantity <span class="text-danger">*</span></label>
-                            @php
-                                $instance = $asset->instances->first();
-                                $qty = $instance ? $instance->qty : 1;
-                            @endphp
-                            <input type="number" class="form-control @error('qty') is-invalid @enderror" id="qty" name="qty" value="{{ old('qty', $qty) }}" min="1" required>
-                            @error('qty')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                        <div class="col-md-6 mb-3 text-center">
+                            <label for="assetPhoto" class="form-label">Asset's Photo</label>
+                            <input class="form-control" type="file" id="assetPhoto" name="asset_photo">
+                            @if ($assetInstance->asset_photo)
+                                <div class="preview-wrapper position-relative d-inline-block mt-3">
+                                    <img src="{{ asset('storage/' . $assetInstance->asset_photo) }}"
+                                        id="assetPhotoPreview" class="img-fluid" style="max-height: 200px;" />
+                                    <input type="hidden" name="remove_asset_photo" id="remove_asset_photo" value="0">
+                                    
+                                    <button type="button"
+                                        id="assetPhotoCloseBtn"
+                                        class="btn-close position-absolute top-0 end-0"
+                                        aria-label="Close"
+                                        onclick="clearPreview('assetPhoto', 'assetPhotoPreview', 'assetPhotoCloseBtn', 'remove_asset_photo')">
+                                    </button>
+
+                                </div>
+                            @else
+                                <div class="preview-wrapper position-relative d-inline-block mt-3">
+                                    <img id="assetPhotoPreview" class="img-fluid" style="max-height: 200px;" />
+                                    <button type="button"
+                                        id="assetPhotoCloseBtn"
+                                        class="btn-close position-absolute top-0 end-0"
+                                        aria-label="Close"
+                                        style="display: none;"
+                                        onclick="clearPreview('assetPhoto', 'assetPhotoPreview', 'assetPhotoCloseBtn', 'remove_asset_photo')">
+                                    </button>
+
+                                </div>
+                            @endif
+                        </div>
+
+                        <div class="col-md-6 mb-3 text-center">
+                            <label for="serialNumberPhoto" class="form-label">Asset's Serial Number Photo</label>
+                            <input class="form-control" type="file" id="serialNumberPhoto" name="asset_serial_number_photo">
+                            @if ($assetInstance->asset_serial_number_photo)
+                                <div class="preview-wrapper position-relative d-inline-block mt-3">
+                                    <img src="{{ asset('storage/' . $assetInstance->asset_serial_number_photo) }}"
+                                        id="serialNumberPhotoPreview" class="img-fluid" style="max-height: 200px;" />
+                                        <input type="hidden" name="remove_asset_serial_number_photo" id="remove_asset_serial_number_photo" value="0">            
+                                        <button type="button"
+                                            id="serialNumberCloseBtn"
+                                            class="btn-close position-absolute top-0 end-0"
+                                            aria-label="Close"
+                                            onclick="clearPreview('serialNumberPhoto', 'serialNumberPhotoPreview', 'serialNumberCloseBtn', 'remove_asset_serial_number_photo')">
+                                        </button>
+                                </div>
+                            @else
+                                <div class="preview-wrapper position-relative d-inline-block mt-3">
+                                    <img id="serialNumberPhotoPreview" class="img-fluid" style="max-height: 200px;" />
+                                    <button type="button"
+                                        id="serialNumberCloseBtn"
+                                        class="btn-close position-absolute top-0 end-0"
+                                        aria-label="Close"
+                                        style="display: none;"
+                                        onclick="clearPreview('serialNumberPhoto', 'serialNumberPhotoPreview', 'serialNumberCloseBtn', 'remove_asset_serial_number_photo')">
+                                    </button>
+                                </div>
+                            @endif
                         </div>
                     </div>
                     <div class="d-flex justify-content-end gap-2">
@@ -244,6 +330,18 @@ function filterChildren(parentSelect, childSelect) {
         option.hidden = parentId ? option.getAttribute('data-parent') !== parentId : false;
     });
 }
+
+function clearPreview(inputId, previewId, closeBtnId, removeFlagId) {
+        const fileInput = document.getElementById(inputId);
+        const previewImg = document.getElementById(previewId);
+        const closeBtn = document.getElementById(closeBtnId);
+        const removeInput = document.getElementById(removeFlagId);
+
+        if (fileInput) fileInput.value = '';
+        if (previewImg) previewImg.src = '';
+        if (closeBtn) closeBtn.style.display = 'none';
+        if (removeInput) removeInput.value = '1';
+    }
 
 document.addEventListener('DOMContentLoaded', function() {
     // Category
@@ -327,6 +425,26 @@ document.addEventListener('DOMContentLoaded', function() {
     filterChildren(infraBuilding, infraFloor);
     filterChildren(infraFloor, infraRoom);
     filterChildren(infraRoom, infraSubRoom);
+
+    infraBuilding.dispatchEvent(new Event('change'));
+    infraFloor.dispatchEvent(new Event('change'));
+    infraRoom.dispatchEvent(new Event('change'));
+
+    document.getElementById('assetPhoto').addEventListener('change', function (event) {
+        const [file] = event.target.files;
+        if (file) {
+            document.getElementById('assetPhotoPreview').src = URL.createObjectURL(file);
+            document.getElementById('assetPhotoCloseBtn').style.display = 'block';
+        }
+    });
+
+    document.getElementById('serialNumberPhoto').addEventListener('change', function (event) {
+        const [file] = event.target.files;
+        if (file) {
+            document.getElementById('serialNumberPhotoPreview').src = URL.createObjectURL(file);
+            document.getElementById('serialNumberCloseBtn').style.display = 'block';
+        }
+    });
 });
 </script>
 @endpush

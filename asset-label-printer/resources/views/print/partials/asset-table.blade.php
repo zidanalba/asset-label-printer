@@ -5,6 +5,7 @@
                 <th><input type="checkbox" class="form-check-input" onclick="Array.from(document.querySelectorAll('#{{ $tableId }} .asset-checkbox')).forEach(cb => cb.checked = this.checked)"></th>
                 <th>Code</th>
                 <th>Name</th>
+                <th>SN</th>
                 <th>Category</th>
                 <th>Organization</th>
                 <th>Location</th>
@@ -17,11 +18,12 @@
                 <td><input type="checkbox" class="form-check-input asset-checkbox" value="{{ $asset->id }}"></td>
                 <td><strong>{{ $asset->code }}</strong></td>
                 <td>{{ $asset->name }}</td>
-                <td>{{ $asset->category->name ?? '-' }}</td>
+                <td>{{ $asset->serial_number ?? 'unavailable' }}</td>
+                <td>{{ $asset->category->name ?? 'unavailable' }}</td>
                 <td>
                     @if($asset->instances->count() > 0)
                         @foreach($asset->instances as $instance)
-                            <span class="badge bg-info">{{ $instance->organization->name ?? '-' }}</span>@if(!$loop->last)<br>@endif
+                            <span class="badge bg-info">{{ $instance->organization->name ?? 'unavailable' }}</span>@if(!$loop->last)<br>@endif
                         @endforeach
                     @else
                         <span class="badge bg-warning">No Organization</span>
@@ -30,7 +32,7 @@
                 <td>
                     @if($asset->instances->count() > 0)
                         @foreach($asset->instances as $instance)
-                            <span class="badge bg-light text-dark">{{ $instance->infrastructure->name ?? '-' }}</span>@if(!$loop->last)<br>@endif
+                            <span class="badge bg-light text-dark">{{ $instance->infrastructure->name ?? 'unavailable' }}</span>@if(!$loop->last)<br>@endif
                         @endforeach
                     @else
                         <span class="badge bg-warning">No Location</span>

@@ -156,14 +156,31 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-3 mb-3">
-                            <label for="qty" class="form-label">Quantity <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control @error('qty') is-invalid @enderror" id="qty" name="qty" value="{{ old('qty', 1) }}" min="1" required>
-                            @error('qty')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                        <div class="col-md-6 mb-3 text-center">
+                            <label for="assetPhoto" class="form-label">Asset's Photo</label>
+                            <input class="form-control" type="file" id="assetPhoto" name="asset_photo">
+
+                            <div class="preview-wrapper position-relative d-inline-block mt-3">
+                                <img id="assetPhotoPreview" class="img-fluid" style="max-height: 200px;" />
+                                <button type="button" id="assetPhotoCloseBtn" class="btn-close position-absolute top-0 end-0"
+                                    style="display: none;" aria-label="Close"
+                                    onclick="clearPreview('assetPhoto', 'assetPhotoPreview', 'assetPhotoCloseBtn')"></button>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6 mb-3 text-center">
+                            <label for="serialNumberPhoto" class="form-label">Asset's Serial Number Photo</label>
+                            <input class="form-control" type="file" id="serialNumberPhoto" name="asset_serial_number_photo">
+
+                            <div class="preview-wrapper position-relative d-inline-block mt-3">
+                                <img id="serialNumberPhotoPreview" class="img-fluid" style="max-height: 200px;" />
+                                <button type="button" id="serialNumberCloseBtn" class="btn-close position-absolute top-0 end-0"
+                                    style="display: none;" aria-label="Close"
+                                    onclick="clearPreview('serialNumberPhoto', 'serialNumberPhotoPreview', 'serialNumberCloseBtn')"></button>
+                            </div>
                         </div>
                     </div>
+                    
                     <div class="d-flex justify-content-end gap-2">
                         <a href="{{ route('assets.index') }}" class="btn btn-secondary">
                             <i class="bi bi-x-circle"></i> Cancel
@@ -299,6 +316,28 @@ document.addEventListener('DOMContentLoaded', function() {
     filterChildren(infraFloor, infraRoom);
     filterChildren(infraRoom, infraSubRoom);
 });
+
+document.getElementById('assetPhoto').addEventListener('change', function (event) {
+    const [file] = event.target.files;
+    if (file) {
+        document.getElementById('assetPhotoPreview').src = URL.createObjectURL(file);
+        document.getElementById('assetPhotoCloseBtn').style.display = 'block';
+    }
+});
+
+document.getElementById('serialNumberPhoto').addEventListener('change', function (event) {
+    const [file] = event.target.files;
+    if (file) {
+        document.getElementById('serialNumberPhotoPreview').src = URL.createObjectURL(file);
+        document.getElementById('serialNumberCloseBtn').style.display = 'block';
+    }
+});
+
+function clearPreview(inputId, previewId, closeBtnId) {
+    document.getElementById(previewId).src = '';
+    document.getElementById(inputId).value = '';
+    document.getElementById(closeBtnId).style.display = 'none';
+}
 </script>
 @endpush
 @endsection 

@@ -17,9 +17,10 @@ class AssetInstance extends Model
         'asset_id',
         'organization_id',
         'infrastructure_id',
-        'qty',
         'installed_at',
         'status',
+        'asset_photo',
+        'asset_serial_number_photo',
     ];
 
     public function asset()

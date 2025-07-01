@@ -1,2 +1,3 @@
-/printer-agent/node_modules/
-/printer-agent/package-lock.json
+/node_modules
+/.pnpm
+/.cache

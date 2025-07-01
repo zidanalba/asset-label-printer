@@ -106,9 +106,6 @@
                                         <span class="badge bg-light text-dark">{{ $instance->infrastructure->name ?? '-' }}</span>
                                     </td>
                                     <td>
-                                        <span class="badge bg-success">{{ $instance->qty }}</span>
-                                    </td>
-                                    <td>
                                         <span class="badge bg-{{ $instance->status == 'active' ? 'success' : ($instance->status == 'maintenance' ? 'warning' : 'secondary') }}">
                                             {{ ucfirst($instance->status ?? 'active') }}
                                         </span>
